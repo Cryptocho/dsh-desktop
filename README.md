@@ -20,6 +20,20 @@ npm install   # 首次
 npm start
 ```
 
+## 打包（Electron Forge）
+
+```bash
+npm run package   # 仅打包，产物在 out/dsh-desktop-linux-x64/
+npm run make      # 打包 + 产出 zip，产物在 out/make/zip/linux/x64/
+```
+
+- 配置见 `forge.config.js`（asar 开启，当前目标：linux x64 + maker-zip）。
+- **Node v26.3.0 已知坑**：`extract-zip`/`yauzl` 解压大 zip 时会中途静默退出（forge 卡在
+  "Finalizing package" 无产物）。已用 `scripts/patch-extract-zip.js` 改写为系统 `unzip`
+  实现，`npm install` 时由 postinstall 自动重放，无需手动干预。
+- deb 目标未配置（需要系统 `dpkg-deb`/`fakeroot`）；如需其他平台目标，在
+  `forge.config.js` 的 `makers` 中追加并安装对应 maker 包。
+
 ## 可选环境变量
 
 | 变量 | 默认 | 说明 |

@@ -1,1 +1,14 @@
+# 依赖
 node_modules/
+
+# 构建产物（Electron Forge：package 与 make 输出）
+out/
+
+# 日志与临时文件
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db

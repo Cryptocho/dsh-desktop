@@ -304,7 +304,8 @@ async function bootstrap() {
 // ---------------- 应用生命周期 ----------------
 
 if (!app.requestSingleInstanceLock()) {
-  // 已有实例在运行，直接退出
+  // 已有实例在运行（它将收到 second-instance 事件并唤起窗口），本实例直接退出
+  log('检测到已有 dsh-desktop 实例在运行，本实例退出');
   app.quit();
 } else {
   app.on('second-instance', () => {

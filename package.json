@@ -3,11 +3,20 @@
   "version": "0.1.0",
   "description": "Minimal Electron shell that hosts DSH Web (http://localhost:3080)",
   "main": "main.js",
-  "scripts": {
-    "start": "electron ."
-  },
+  "author": "cryptocho",
   "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "postinstall": "node scripts/patch-extract-zip.js"
+  },
   "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
     "electron": "^44.1.1"
+  },
+  "overrides": {
+    "@electron/node-gyp": "npm:node-gyp@^12.2.0"
   }
 }
