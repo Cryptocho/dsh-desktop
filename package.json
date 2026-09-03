@@ -1,0 +1,13 @@
+{
+  "name": "dsh-desktop",
+  "version": "0.1.0",
+  "description": "Minimal Electron shell that hosts DSH Web (http://localhost:3080)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^44.1.1"
+  }
+}
