@@ -27,6 +27,7 @@ npm start
 - 只有托盘菜单的「**退出**」（或对进程发 `SIGINT`/`SIGTERM`）才会真正退出，并终止本程序启动的 dsh 进程树；隐藏在托盘期间服务不受影响。
 - 设 `DSH_DESKTOP_TRAY=0`（或 `false`/`off`）禁用托盘：点 X 恢复旧的关闭行为（外部服务弹窗确认 / 自启服务直接退出）。
 - 图标：`assets/tray.png`（64×64，托盘）与 `assets/icon.png`（256×256，窗口图标），由根目录 `icon.jpg` 经 ImageMagick 转换而来；换图标时替换 `icon.jpg` 后重新执行同样的转换即可。
+- 打包产物附带散装图标：`postPackage` 钩子会把两张 PNG 复制到 `resources/icons/`（asar 之外），zip 里路径为 `dsh-desktop-linux-x64/resources/icons/*.png`，便于 ebuild / .desktop 直接取用，无需解包 asar。
 
 ## 打包（Electron Forge）
 
