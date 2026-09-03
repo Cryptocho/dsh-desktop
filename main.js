@@ -12,13 +12,15 @@
  *          c) 均失败 -> 弹错误对话框并退出
  *   2. 服务就绪后，在窗口中加载该页面
  *   3. 本程序启动的 dsh 与本程序生命周期一致：退出时终止整个进程树
+ *   4. 常驻系统托盘：点 X 仅隐藏到托盘，托盘右键菜单「显示主窗口 / 退出」
  *
  * 环境变量（均可选）:
  *   DSH_DESKTOP_PORT               目标端口，默认 3080
  *   DSH_DESKTOP_READY_TIMEOUT_MS   等待服务就绪的超时，默认 120000
+ *   DSH_DESKTOP_TRAY               置 0/false/off 禁用托盘，点 X 恢复旧关闭行为
  */
 
-const { app, BrowserWindow, Menu, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, Tray, Notification } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -31,13 +33,18 @@ const BASE_URL = `http://localhost:${PORT}`;
 const READY_TIMEOUT_MS = Number(process.env.DSH_DESKTOP_READY_TIMEOUT_MS || 120000);
 const POLL_INTERVAL_MS = 500;
 const IS_WIN = process.platform === 'win32';
+const IS_LINUX = process.platform === 'linux';
+// DSH_DESKTOP_TRAY=0/false/off 时禁用托盘；点 X 恢复「外部服务弹窗确认 / 自启服务直接退出」旧行为
+const TRAY_ENABLED = !/^(0|false|off|no)$/i.test(process.env.DSH_DESKTOP_TRAY || '');
 
 // ---------------- 运行状态 ----------------
 
 let win = null;
+let tray = null; // 系统托盘实例；null 表示未启用（被禁用、缺图标或创建失败）
 let dsh = null; // 本程序启动的 dsh 子进程；null 表示使用外部已就绪的服务
 let via = null; // 实际使用的启动方式描述
 let quitting = false;
+let hideNotified = false; // 「已最小化到托盘」是否提示过（仅首次提示）
 let dshStoppedByUs = false;
 let childError = null;
 let childExit = null;
@@ -177,6 +184,75 @@ function fatal(message) {
   app.exit(1);
 }
 
+// ---------------- 托盘 ----------------
+
+/** 显示并聚焦主窗口（托盘点击 / 二次启动唤起共用） */
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** 真正退出：置位 quitting 后走 app.quit()，will-quit 会终止 dsh 进程树 */
+function quitApp() {
+  quitting = true;
+  app.quit();
+}
+
+/** 首次隐藏到托盘时发系统通知，避免用户误以为程序已退出 */
+function notifyHiddenToTray() {
+  if (hideNotified) return;
+  hideNotified = true;
+  try {
+    if (!Notification.isSupported()) return;
+    const n = new Notification({
+      title: 'dsh-desktop 已最小化到托盘',
+      body: '程序仍在后台运行，点击托盘图标可重新打开窗口。',
+      silent: true,
+    });
+    n.on('click', showWindow);
+    n.show();
+  } catch (err) {
+    log('托盘通知失败(忽略):', err.message);
+  }
+}
+
+function createTray() {
+  if (!TRAY_ENABLED || tray) return;
+  let iconPath = path.join(__dirname, 'assets', 'tray.png');
+  try {
+    fs.accessSync(iconPath);
+  } catch {
+    log('未找到托盘图标，跳过托盘:', iconPath);
+    return;
+  }
+  // Linux appindicator 要求图标文件在托盘生命周期内保持在磁盘上：
+  // 打包后图标位于 asar 内，先复制到 userData 再交给 Tray 最稳妥
+  if (IS_LINUX && iconPath.includes('app.asar')) {
+    try {
+      const dest = path.join(app.getPath('userData'), 'tray.png');
+      fs.copyFileSync(iconPath, dest);
+      iconPath = dest;
+    } catch {
+      /* 复制失败则直接用 asar 内路径 */
+    }
+  }
+  tray = new Tray(iconPath);
+  tray.setToolTip('dsh-desktop');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: '显示主窗口', click: showWindow },
+      { type: 'separator' },
+      { label: '退出', click: quitApp },
+    ])
+  );
+  // Windows/macOS 左键单击唤起窗口；部分 Linux 桌面（appindicator）不支持 click 事件，
+  // 那种环境通过右键菜单操作
+  tray.on('click', showWindow);
+  log('托盘已创建:', iconPath);
+}
+
 // ---------------- 窗口 ----------------
 
 function loadingHtml() {
@@ -203,6 +279,7 @@ function createWindow(loadNow) {
     minWidth: 720,
     minHeight: 480,
     title: 'dsh-desktop',
+    icon: path.join(__dirname, 'assets', 'icon.png'), // Linux/Windows 窗口图标
     backgroundColor: '#14141f',
     show: false,
     autoHideMenuBar: true,
@@ -216,9 +293,16 @@ function createWindow(loadNow) {
   Menu.setApplicationMenu(null);
   win.once('ready-to-show', () => win.show());
 
-  // 关闭行为：外部服务 -> 弹窗提示不会关闭它；本程序启动的服务 -> 直接退出并终止 dsh
+  // 关闭行为：启用托盘 -> 点 X 仅隐藏到托盘（首次有通知）；
+  // 未启用托盘 -> 外部服务弹窗确认 / 本程序启动的服务直接退出并终止 dsh
   win.on('close', (e) => {
     if (quitting || !win) return;
+    if (tray) {
+      e.preventDefault();
+      win.hide();
+      notifyHiddenToTray();
+      return;
+    }
     if (dsh) return; // 生命周期一致：随窗口关闭终止 dsh，无需确认
     e.preventDefault();
     const choice = dialog.showMessageBoxSync(win, {
@@ -298,6 +382,7 @@ async function bootstrap() {
   }
 
   createWindow(ready);
+  createTray();
   log('窗口已打开');
 }
 
@@ -309,13 +394,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
-    }
+    showWindow(); // 唤起已有实例的主窗口（可能正隐藏在托盘）
   });
 
+  if (IS_WIN) app.setAppUserModelId('com.cryptocho.dsh-desktop'); // Windows 通知需要
   app.whenReady().then(bootstrap);
 
   // 任何退出流程（app.quit / 信号触发的优雅退出）的必经事件：

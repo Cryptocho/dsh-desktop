@@ -20,6 +20,14 @@ npm install   # 首次
 npm start
 ```
 
+## 托盘与关闭行为
+
+- 默认启用系统托盘：点击窗口 **X** 只是**隐藏到托盘**，程序与 DSH 服务继续在后台运行；首次隐藏会弹一条系统通知。
+- 托盘交互：左键单击唤起主窗口（Windows/macOS；部分 Linux 桌面如 GNOME appindicator 仅支持右键菜单）；右键菜单：**显示主窗口 / 退出**。
+- 只有托盘菜单的「**退出**」（或对进程发 `SIGINT`/`SIGTERM`）才会真正退出，并终止本程序启动的 dsh 进程树；隐藏在托盘期间服务不受影响。
+- 设 `DSH_DESKTOP_TRAY=0`（或 `false`/`off`）禁用托盘：点 X 恢复旧的关闭行为（外部服务弹窗确认 / 自启服务直接退出）。
+- 图标：`assets/tray.png`（64×64，托盘）与 `assets/icon.png`（256×256，窗口图标），由根目录 `icon.jpg` 经 ImageMagick 转换而来；换图标时替换 `icon.jpg` 后重新执行同样的转换即可。
+
 ## 打包（Electron Forge）
 
 ```bash
@@ -40,9 +48,10 @@ npm run make      # 打包 + 产出 zip，产物在 out/make/zip/linux/x64/
 | --- | --- | --- |
 | `DSH_DESKTOP_PORT` | `3080` | 目标端口 |
 | `DSH_DESKTOP_READY_TIMEOUT_MS` | `120000` | 等待服务就绪的超时（毫秒） |
+| `DSH_DESKTOP_TRAY` | 开启 | 置 `0`/`false`/`off` 禁用托盘，点 X 恢复旧关闭行为 |
 
 ## 其他行为
 
-- 单实例锁：重复启动会唤起已有窗口。
+- 单实例锁：重复启动会唤起已有窗口（包括正隐藏在托盘的情况）。
 - 外部链接（非本站）交给系统浏览器打开。
 - 保留快捷键：`F5` / `Ctrl+R` 刷新，`Ctrl+Shift+I` 开发者工具。
