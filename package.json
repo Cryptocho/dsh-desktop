@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Minimal Electron shell that hosts DSH Web (http://localhost:3080)",
   "main": "main.js",
   "author": "cryptocho",
