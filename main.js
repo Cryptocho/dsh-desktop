@@ -287,6 +287,7 @@ function createWindow(loadNow) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      spellcheck: false, // 禁用拼写检查
     },
   });
 
